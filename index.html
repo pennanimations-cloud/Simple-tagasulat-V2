@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#171923">
+  <title>Simple Tagasulat</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 18px;
+      font-family: Arial, sans-serif;
+      background: #f3f4f6;
+      color: #202334;
+    }
+    main {
+      max-width: 650px;
+      margin: auto;
+    }
+    h1 { margin-bottom: 5px; }
+    .subtitle { color: #606575; }
+    section {
+      background: white;
+      padding: 16px;
+      margin: 16px 0;
+      border-radius: 14px;
+      box-shadow: 0 2px 8px #0000000b;
+    }
+    label { display: block; margin: 12px 0 5px; font-weight: bold; }
+    input, textarea, button {
+      width: 100%;
+      padding: 12px;
+      font: inherit;
+      border-radius: 8px;
+    }
+    input, textarea { border: 1px solid #cbd0da; }
+    textarea { min-height: 100px; resize: vertical; }
+    button {
+      border: 0;
+      background: #5546d7;
+      color: white;
+      font-weight: bold;
+      margin-top: 12px;
+      cursor: pointer;
+    }
+    .secondary { background: #303447; }
+    .group {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 8px;
+      align-items: center;
+      margin: 10px 0;
+    }
+    .group input[type=checkbox] { width: 22px; }
+    .group label { margin: 0; }
+    .sticker {
+      background: white;
+      color: #111;
+      border: 2px dashed #aaa;
+      padding: 12px;
+      min-height: 100px;
+      overflow-wrap: anywhere;
+    }
+    .muted { color: #646b7a; font-size: 13px; }
+    #status { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Simple Tagasulat</h1>
+  <p class="subtitle">Pinned-comment sticker printing</p>
+
+  <section>
+    <h2>1. Store and seller</h2>
+    <label for="store">Store name</label>
+    <input id="store" value="Tagasulat Shop">
+    <label for="seller">TikTok seller username</label>
+    <input id="seller" placeholder="@sellername">
+    <p class="muted">TikTok connection must be integrated separately.</p>
+  </section>
+
+  <section>
+    <h2>2. Claim prices</h2>
+    <p class="muted">Change prices and switch groups on or off.</p>
+    <div id="groups"></div>
+  </section>
+
+  <section>
+    <h2>3. Test a pinned comment</h2>
+    <label for="comment">Paste a sample pinned comment</label>
+    <textarea id="comment" placeholder="@maria123 M25"></textarea>
+    <button onclick="processComment()">Check comment</button>
+    <p id="status" aria-live="polite"></p>
+  </section>
+
+  <section>
+    <h2>4. Sticker settings</h2>
+    <label for="width">Width (cm)</label>
+    <input id="width" type="number" min="1" max="8" value="8">
+    <label for="height">Height (cm)</label>
+    <input id="height" type="number" min="1" max="28" value="5">
+    <p class="muted">Initial settings are limited to reported printer dimensions. Actual label stock may be smaller.</p>
+  </section>
+
+  <section>
+    <h2>5. Sticker preview</h2>
+    <div id="sticker" class="sticker">
+      <strong>Tagasulat Shop</strong>
+      <p>Enter a sample comment to preview a sticker.</p>
+    </div>
+    <button onclick="window.print()">Print preview</button>
+    <button class="secondary" onclick="testPrint()">Test printer</button>
+    <p id="printerStatus" class="muted" aria-live="polite">
+      Printer not connected. Test printing is not yet integrated.
+    </p>
+  </section>
+</main>
+
+<script>
+const config = [
+  {code:"M", name:"MINE", price:159},
+  {code:"L", name:"LOCK", price:299},
+  {code:"A", name:"AUTO", price:199},
+  {code:"G", name:"GRAB", price:249}
+];
+
+const groups = document.getElementById("groups");
+
+config.forEach((g, i) => {
+  const row = document.createElement("div");
+  row.className = "group";
+  row.innerHTML =
+    '<label for="on'+i+'">'+g.name+'</label>' +
+    '<input id="price'+i+'" type="number" min="0" value="'+g.price+'" aria-label="'+g.name+' price">' +
+    '<input id="on'+i+'" type="checkbox" checked aria-label="Enable '+g.name+'">';
+  groups.appendChild(row);
+});
+
+function processComment() {
+  const raw = document.getElementById("comment").value.trim();
+  const status = document.getElementById("status");
+  const sticker = document.getElementById("sticker");
+  const store = document.getElementById("store").value.trim() || "Tagasulat Shop";
+
+  if (!raw) {
+    status.textContent = "Please enter a sample comment.";
+    return;
+  }
+
+  const match = raw.match(/(?:\b(mine|lock|auto|grab|m|l|a|g)\s*)?([1-9]\d*)\b/i);
+  let claim = null;
+
+  if (match) {
+    const prefix = (match[1] || "M").toUpperCase();
+    const number = match[2];
+    const codeMap = {
+      MINE:"M", M:"M", LOCK:"L", L:"L",
+      AUTO:"A", A:"A", GRAB:"G", G:"G"
+    };
+    const code = codeMap[prefix];
+    const index = config.findIndex(g => g.code === code);
+
+    if (index >= 0 && document.getElementById("on"+index).checked) {
+      claim = {
+        code: code + number,
+        price: document.getElementById("price"+index).value
+      };
+    }
+  }
+
+  const userMatch = raw.match(/@[A-Za-z0-9._-]+/);
+  const username = userMatch ? userMatch[0] : "";
+  const textWithoutUsername = raw.replace(/@[A-Za-z0-9._-]+/g, "").trim();
+
+  sticker.replaceChildren();
+  const heading = document.createElement("strong");
+  heading.textContent = store;
+  sticker.appendChild(heading);
+
+  const userLine = document.createElement("p");
+  userLine.textContent = username;
+  sticker.appendChild(userLine);
+
+  if (claim) {
+    const codeLine = document.createElement("p");
+    codeLine.textContent = claim.code;
+    sticker.appendChild(codeLine);
+
+    const priceLine = document.createElement("h2");
+    priceLine.textContent = "₱" + claim.price;
+    sticker.appendChild(priceLine);
+    status.textContent = "Claim detected. Preview only; automatic printing is not connected yet.";
+  } else {
+    const commentLine = document.createElement("p");
+    commentLine.textContent = textWithoutUsername || raw;
+    sticker.appendChild(commentLine);
+    status.textContent = "No enabled claim detected. Text sticker preview ready.";
+  }
+
+  const w = Math.min(8, Math.max(1, Number(document.getElementById("width").value) || 8));
+  const h = Math.min(28, Math.max(1, Number(document.getElementById("height").value) || 5));
+  sticker.style.width = w + "cm";
+  sticker.style.minHeight = h + "cm";
+}
+
+function testPrint() {
+  document.getElementById("printerStatus").textContent =
+    "Printer test is not connected yet. Android Bluetooth printing must be implemented and tested.";
+}
+</script>
+</body>
+</html>
